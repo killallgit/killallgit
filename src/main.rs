@@ -451,10 +451,18 @@ fn delete_worktrees(worktrees: &[&str], force: bool) -> Result<()> {
 // Branch Functions
 // ============================================================================
 
-const PROTECTED_BRANCHES: &[&str] = &["main", "master", "develop", "development"];
-
 fn is_protected_branch(name: &str) -> bool {
-    PROTECTED_BRANCHES.contains(&name)
+    const DEFAULT_PROTECTED: &[&str] = &["main", "master", "develop", "development"];
+
+    if DEFAULT_PROTECTED.contains(&name) {
+        return true;
+    }
+
+    if let Ok(extra) = std::env::var("KILLALLGIT_PROTECTED") {
+        return extra.split(',').map(|s| s.trim()).any(|s| s == name);
+    }
+
+    false
 }
 
 fn get_remote_branches(remote: &str) -> Result<Vec<String>> {
@@ -849,5 +857,21 @@ mod tests {
         assert!(!is_protected_branch("feature/test"));
         assert!(!is_protected_branch("bugfix/fix-123"));
         assert!(!is_protected_branch("main-feature"));
+    }
+
+    #[test]
+    fn test_is_protected_branch_with_env() {
+        // SAFETY: This test runs in isolation; env var manipulation is safe here
+        unsafe {
+            std::env::set_var("KILLALLGIT_PROTECTED", "release, staging");
+        }
+        assert!(is_protected_branch("release"));
+        assert!(is_protected_branch("staging"));
+        assert!(is_protected_branch("main")); // defaults still protected
+        assert!(!is_protected_branch("feature/test"));
+        // SAFETY: Cleanup after test
+        unsafe {
+            std::env::remove_var("KILLALLGIT_PROTECTED");
+        }
     }
 }

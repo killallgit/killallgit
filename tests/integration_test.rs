@@ -7,8 +7,6 @@ static TEST_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 struct TestRepo {
     work_dir: PathBuf,
-    #[allow(dead_code)]
-    bare_dir: PathBuf,
     temp_dir: PathBuf,
 }
 
@@ -83,7 +81,7 @@ impl TestRepo {
             .output()
             .expect("Failed to push main");
 
-        TestRepo { work_dir, bare_dir, temp_dir }
+        TestRepo { work_dir, temp_dir }
     }
 
     fn create_branch(&self, name: &str) {
@@ -124,7 +122,7 @@ impl TestRepo {
     fn run_killallgit(&self, args: &[&str]) -> (String, String, bool) {
         // Get binary path from cargo
         let binary = option_env!("CARGO_BIN_EXE_killallgit")
-            .map(|s| PathBuf::from(s))
+            .map(PathBuf::from)
             .unwrap_or_else(|| {
                 // Fallback: find binary relative to manifest dir
                 let manifest_dir = env!("CARGO_MANIFEST_DIR");
@@ -152,7 +150,7 @@ impl Drop for TestRepo {
 }
 
 #[test]
-fn test_clean_branches_dry_run_lists_branches() {
+fn test_clean_branches_dry_run_lists_remote_branches() {
     let repo = TestRepo::new();
 
     // Create test branches
@@ -160,8 +158,8 @@ fn test_clean_branches_dry_run_lists_branches() {
     repo.create_branch("feature/test-2");
     repo.create_branch("bugfix/fix-123");
 
-    // Run dry-run
-    let (stdout, _stderr, success) = repo.run_killallgit(&["clean", "branches", "--dry-run"]);
+    // Run dry-run with origin/ prefix for remote branches
+    let (stdout, _stderr, success) = repo.run_killallgit(&["clean", "branches", "origin/.*", "--dry-run"]);
 
     assert!(success, "Command should succeed");
     assert!(stdout.contains("feature/test-1"), "Should list feature/test-1");
@@ -180,8 +178,8 @@ fn test_clean_branches_dry_run_with_pattern() {
     repo.create_branch("feature/test-2");
     repo.create_branch("bugfix/fix-123");
 
-    // Run dry-run with pattern
-    let (stdout, _stderr, success) = repo.run_killallgit(&["clean", "branches", "feature/.*", "--dry-run"]);
+    // Run dry-run with pattern (origin/ prefix for remote branches)
+    let (stdout, _stderr, success) = repo.run_killallgit(&["clean", "branches", "origin/feature/.*", "--dry-run"]);
 
     assert!(success, "Command should succeed");
     assert!(stdout.contains("feature/test-1"), "Should list feature/test-1");
@@ -197,8 +195,8 @@ fn test_clean_branches_dry_run_json_output() {
     repo.create_branch("feature/json-test-1");
     repo.create_branch("feature/json-test-2");
 
-    // Run dry-run with JSON
-    let (stdout, _stderr, success) = repo.run_killallgit(&["clean", "branches", "feature/json.*", "--dry-run", "--json"]);
+    // Run dry-run with JSON (origin/ prefix for remote branches)
+    let (stdout, _stderr, success) = repo.run_killallgit(&["clean", "branches", "origin/feature/json.*", "--dry-run", "--json"]);
 
     assert!(success, "Command should succeed");
 
@@ -223,8 +221,8 @@ fn test_clean_branches_actually_deletes() {
     assert!(branches_before.iter().any(|b| b.contains("feature/delete-me-1")));
     assert!(branches_before.iter().any(|b| b.contains("feature/delete-me-2")));
 
-    // Run clean with force
-    let (stdout, _stderr, success) = repo.run_killallgit(&["clean", "branches", "feature/delete-me.*", "--force"]);
+    // Run clean with force (origin/ prefix for remote branches)
+    let (stdout, _stderr, success) = repo.run_killallgit(&["clean", "branches", "origin/feature/delete-me.*", "--force"]);
 
     assert!(success, "Command should succeed");
     assert!(stdout.contains("Deleted"), "Should show deletion message");
@@ -246,8 +244,8 @@ fn test_clean_branches_actually_deletes() {
 fn test_clean_branches_protects_main() {
     let repo = TestRepo::new();
 
-    // Try to delete main with pattern that matches it
-    let (stdout, _stderr, success) = repo.run_killallgit(&["clean", "branches", "main", "--dry-run"]);
+    // Try to delete main with pattern that matches it (origin/ prefix for remote)
+    let (stdout, _stderr, success) = repo.run_killallgit(&["clean", "branches", "origin/main", "--dry-run"]);
 
     assert!(success, "Command should succeed");
     // stdout should be empty or not contain main as deletable
@@ -260,8 +258,8 @@ fn test_clean_branches_protects_main() {
 fn test_clean_branches_no_matching() {
     let repo = TestRepo::new();
 
-    // Run dry-run with pattern that matches nothing
-    let (stdout, _stderr, success) = repo.run_killallgit(&["clean", "branches", "nonexistent/.*", "--dry-run", "--json"]);
+    // Run dry-run with pattern that matches nothing (origin/ prefix for remote)
+    let (stdout, _stderr, success) = repo.run_killallgit(&["clean", "branches", "origin/nonexistent/.*", "--dry-run", "--json"]);
 
     assert!(success, "Command should succeed");
     assert_eq!(stdout.trim(), "[]", "Should return empty JSON array");

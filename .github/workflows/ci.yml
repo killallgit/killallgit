@@ -109,9 +109,21 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         path: artifacts
-    
+
+    - name: Rename artifacts for release
+      run: |
+        cd artifacts
+        for dir in */; do
+          asset_name="${dir%/}"
+          for file in "$dir"*; do
+            mv "$file" "$asset_name"
+          done
+          rmdir "$dir"
+        done
+        ls -la
+
     - name: Upload release assets
       uses: softprops/action-gh-release@v2
       with:
-        files: artifacts/*/*
+        files: artifacts/*
         token: ${{ secrets.GITHUB_TOKEN }}

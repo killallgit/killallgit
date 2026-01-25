@@ -210,7 +210,7 @@ jobs:
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          repository: killallgit/killallgit-homebrew
+          repository: killallgit/homebrew-killallgit
           event-type: formula-update
           client-payload: |
             {

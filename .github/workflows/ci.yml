@@ -122,7 +122,7 @@ jobs:
         shell: pwsh
         run: |
           cd target/${{ matrix.target }}/release
-          Compress-Archive -Path ${{ matrix.artifact_name }} -DestinationPath ${{ matrix.asset_name }}.zip
+          Compress-Archive -Force -Path ${{ matrix.artifact_name }} -DestinationPath ${{ matrix.asset_name }}.zip
           (Get-FileHash -Algorithm SHA256 ${{ matrix.asset_name }}.zip).Hash.ToLower() + "  " + "${{ matrix.asset_name }}.zip" | Out-File -Encoding ASCII ${{ matrix.asset_name }}.zip.sha256
 
       - name: Upload tarball artifact (Unix)

@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use clap::{Parser, Subcommand};
 use dialoguer::{console::style, MultiSelect, Select};
 use regex::Regex;
@@ -15,30 +15,23 @@ use std::process::Command;
     propagate_version = true
 )]
 struct Cli {
+    /// Name of worktree to create
+    name: Option<String>,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Add a resource
-    Add {
-        #[command(subcommand)]
-        resource: AddResource,
-    },
-    /// Clean up resources
+    /// Manage worktrees - list, create, or delete
+    Worktree,
+    /// Alias for 'worktree'
+    Worktrees,
+    /// Clean up worktrees or branches
     Clean {
         #[command(subcommand)]
-        resource: CleanResource,
-    },
-}
-
-#[derive(Subcommand)]
-enum AddResource {
-    /// Add a new worktree
-    Worktree {
-        /// Name of the worktree
-        name: String,
+        resource: Option<CleanResource>,
     },
 }
 
@@ -81,11 +74,10 @@ enum CleanResource {
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    match cli.command {
-        Some(Commands::Add { resource }) => match resource {
-            AddResource::Worktree { name } => add_worktree(name),
-        },
-        Some(Commands::Clean { resource }) => match resource {
+    match (cli.name, cli.command) {
+        (Some(name), None) => add_worktree(name),
+        (None, Some(Commands::Worktree | Commands::Worktrees)) => worktree_dashboard(),
+        (None, Some(Commands::Clean { resource: Some(resource) })) => match resource {
             CleanResource::Worktrees {
                 pattern,
                 force,
@@ -106,92 +98,110 @@ fn main() -> Result<()> {
                 json,
             } => clean_branches(pattern, force, dry_run, json),
         },
-        None => interactive_menu(),
+        (None, Some(Commands::Clean { resource: None })) => clean_interactive_menu(),
+        (None, None) => worktree_dashboard(),
+        (Some(_), Some(_)) => Err(anyhow!(
+            "Cannot specify both a worktree name and a subcommand.\n\
+             Run 'killallgit --help' for usage."
+        )),
     }
 }
 
-fn interactive_menu() -> Result<()> {
+fn worktree_dashboard() -> Result<()> {
     use dialoguer::Input;
 
-    if !std::io::stdin().is_terminal() {
-        return Err(anyhow!(
-            "Interactive mode requires a terminal. Use command-line arguments instead.\n\
-             Run 'killallgit --help' for available commands."
-        ));
+    require_terminal()?;
+
+    let worktrees = get_existing_worktrees()?;
+
+    // If no worktrees exist, go straight to create flow
+    if worktrees.is_empty() {
+        let name: String = Input::new()
+            .with_prompt(style("Worktree name").cyan().to_string())
+            .interact_text()?;
+        return add_worktree(name);
     }
 
-    loop {
-        let main_options = &[
-            style("Add").cyan().to_string(),
-            style("Clean").cyan().to_string(),
-            style("Exit").dim().to_string(),
-        ];
+    // Build items: "Create new" + existing worktrees
+    let mut items = vec![style("➕ Create new worktree").cyan().to_string()];
+    for wt in &worktrees {
+        items.push(style(wt).yellow().bold().to_string());
+    }
 
-        let selection = Select::new()
-            .with_prompt(style("What would you like to do?").bold().to_string())
-            .items(main_options)
-            .interact_opt()?;
+    let selections = MultiSelect::new()
+        .with_prompt(
+            style("Worktrees (space to select, enter to confirm)").bold().to_string(),
+        )
+        .items(&items)
+        .interact_opt()?;
 
-        match selection {
-            Some(0) => {
-                // Add submenu
-                let add_options = &[
-                    style("Worktree").yellow().to_string(),
-                    style("← Back").dim().to_string(),
-                ];
+    let indices = match selections {
+        Some(s) if !s.is_empty() => s,
+        _ => return Ok(()),
+    };
 
-                let add_sel = Select::new()
-                    .with_prompt(style("Add what?").bold().to_string())
-                    .items(add_options)
-                    .interact_opt()?;
+    let create = indices.contains(&0);
+    let to_delete: Vec<&str> = indices
+        .iter()
+        .filter(|&&i| i > 0)
+        .map(|&i| worktrees[i - 1].as_str())
+        .collect();
 
-                match add_sel {
-                    Some(0) => {
-                        let name: String = Input::new()
-                            .with_prompt(style("Worktree name").cyan().to_string())
-                            .interact_text()?;
-                        add_worktree(name)?;
-                        break;
-                    }
-                    _ => continue,
-                }
-            }
-            Some(1) => {
-                // Clean submenu
-                let clean_options = &[
-                    style("Worktrees").yellow().to_string(),
-                    style("Branches").yellow().to_string(),
-                    style("← Back").dim().to_string(),
-                ];
+    // Create first
+    if create {
+        let name: String = Input::new()
+            .with_prompt(style("Worktree name").cyan().to_string())
+            .interact_text()?;
+        add_worktree(name)?;
+    }
 
-                let clean_sel = Select::new()
-                    .with_prompt(style("Clean what?").bold().to_string())
-                    .items(clean_options)
-                    .interact_opt()?;
+    // Then delete selected worktrees
+    if !to_delete.is_empty() {
+        display_items_for_deletion(&to_delete, "worktrees", "selected for deletion");
 
-                match clean_sel {
-                    Some(0) => {
-                        clean_worktrees(None, false, false, false)?;
-                        break;
-                    }
-                    Some(1) => {
-                        clean_branches(None, false, false, false)?;
-                        break;
-                    }
-                    _ => continue,
-                }
-            }
-            Some(2) | None => break,
-            _ => break,
+        if confirm_deletion("worktrees", to_delete.len(), "local")? {
+            delete_worktrees(&to_delete, false)?;
+        } else {
+            println!("{}", style("Deletion cancelled.").yellow());
         }
     }
 
     Ok(())
 }
 
+fn clean_interactive_menu() -> Result<()> {
+    require_terminal()?;
+
+    let options = &[
+        style("Worktrees").cyan().to_string(),
+        style("Branches").cyan().to_string(),
+    ];
+
+    let selection = Select::new()
+        .with_prompt(style("What would you like to clean?").bold().to_string())
+        .items(options)
+        .interact_opt()?;
+
+    match selection {
+        Some(0) => clean_worktrees(None, false, false, false),
+        Some(1) => clean_branches(None, false, false, false),
+        _ => Ok(()),
+    }
+}
+
 // ============================================================================
 // Shared Utilities
 // ============================================================================
+
+fn require_terminal() -> Result<()> {
+    if !std::io::stdin().is_terminal() {
+        bail!(
+            "Interactive mode requires a terminal. Use command-line arguments instead.\n\
+             Run 'killallgit --help' for available commands."
+        );
+    }
+    Ok(())
+}
 
 fn get_git_root() -> Result<std::path::PathBuf> {
     let output = Command::new("git")
@@ -200,34 +210,24 @@ fn get_git_root() -> Result<std::path::PathBuf> {
         .context("Failed to execute git rev-parse --show-toplevel")?;
 
     if !output.status.success() {
-        return Err(anyhow!("Not in a git repository"));
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("Not in a git repository: {}", stderr.trim());
     }
 
     let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
     Ok(std::path::PathBuf::from(path))
 }
 
-fn get_repo_name() -> Result<String> {
+fn get_worktree_base_path() -> Result<std::path::PathBuf> {
     let git_root = get_git_root()?;
     let repo_name = git_root
         .file_name()
         .and_then(|name| name.to_str())
         .ok_or_else(|| anyhow!("Could not determine repository name"))?;
-
-    Ok(repo_name.to_string())
-}
-
-fn get_worktree_base_path() -> Result<std::path::PathBuf> {
-    let git_root = get_git_root()?;
-    let repo_name = get_repo_name()?;
     let parent = git_root
         .parent()
         .ok_or_else(|| anyhow!("Could not determine parent directory"))?;
     Ok(parent.join(".worktrees").join(repo_name))
-}
-
-fn get_worktree_path(worktree_name: &str) -> Result<std::path::PathBuf> {
-    Ok(get_worktree_base_path()?.join(worktree_name))
 }
 
 fn print_json_array(items: &[&str]) {
@@ -252,9 +252,9 @@ fn confirm_deletion(item_type: &str, count: usize, target: &str) -> Result<bool>
             style("❌ No, cancel").red().to_string(),
             style("💥 Yes, delete them!").red().bold().to_string(),
         ])
-        .interact()?;
+        .interact_opt()?;
 
-    Ok(confirmation == 1)
+    Ok(confirmation == Some(1))
 }
 
 /// Handles empty result output for dry-run and json modes
@@ -374,13 +374,8 @@ fn print_deletion_result(result: &GitCommandResult) {
 }
 
 // ============================================================================
-// Branch Scope and Pattern Parsing
+// Branch Pattern Parsing
 // ============================================================================
-
-enum BranchScope {
-    Local,
-    Remote { remote: String },
-}
 
 fn get_configured_remotes() -> Result<Vec<String>> {
     let output = Command::new("git")
@@ -401,18 +396,18 @@ fn get_configured_remotes() -> Result<Vec<String>> {
     Ok(remotes)
 }
 
-fn parse_branch_pattern(pattern: &str) -> Result<(BranchScope, String)> {
+fn parse_branch_pattern(pattern: &str) -> Result<(BranchTarget, String)> {
     let remotes = get_configured_remotes()?;
 
     for remote in remotes {
         let prefix = format!("{}/", remote);
         if pattern.starts_with(&prefix) {
             let branch_pattern = pattern.strip_prefix(&prefix).unwrap().to_string();
-            return Ok((BranchScope::Remote { remote }, branch_pattern));
+            return Ok((BranchTarget::Remote(remote), branch_pattern));
         }
     }
 
-    Ok((BranchScope::Local, pattern.to_string()))
+    Ok((BranchTarget::Local, pattern.to_string()))
 }
 
 // ============================================================================
@@ -420,8 +415,8 @@ fn parse_branch_pattern(pattern: &str) -> Result<(BranchScope, String)> {
 // ============================================================================
 
 fn add_worktree(name: String) -> Result<()> {
-    let worktree_path = get_worktree_path(&name)?;
     let base_path = get_worktree_base_path()?;
+    let worktree_path = base_path.join(&name);
 
     fs::create_dir_all(&base_path)
         .context("Failed to create worktree base directory")?;
@@ -433,7 +428,7 @@ fn add_worktree(name: String) -> Result<()> {
 
     if !output.status.success() {
         let error = String::from_utf8_lossy(&output.stderr);
-        return Err(anyhow!("Failed to create worktree: {}", error));
+        bail!("Failed to create worktree: {}", error);
     }
 
     let abs_path = fs::canonicalize(&worktree_path)
@@ -449,7 +444,8 @@ fn get_existing_worktrees() -> Result<Vec<String>> {
         .context("Failed to execute git worktree list")?;
 
     if !output.status.success() {
-        return Err(anyhow!("Failed to list worktrees"));
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("Failed to list worktrees: {}", stderr.trim());
     }
 
     let current_dir = std::env::current_dir()
@@ -506,7 +502,7 @@ fn clean_worktrees_by_pattern(
     dry_run: bool,
     json: bool,
 ) -> Result<()> {
-    let regex = Regex::new(pattern).map_err(|e| anyhow!("Invalid regex pattern: {}", e))?;
+    let regex = Regex::new(pattern).context("Invalid regex pattern")?;
 
     let matching: Vec<&str> = worktrees
         .iter()
@@ -590,19 +586,13 @@ fn clean_all_worktrees(force: bool, dry_run: bool, json: bool) -> Result<()> {
 }
 
 fn delete_worktrees(worktrees: &[&str], force: bool) -> Result<()> {
+    let base_path = get_worktree_base_path()?;
     let mut deleted = 0;
     let mut failed = 0;
 
     println!();
     for name in worktrees {
-        let path = match get_worktree_path(name) {
-            Ok(p) => p,
-            Err(e) => {
-                print_deletion_result(&GitCommandResult::Failure(e.to_string()));
-                failed += 1;
-                continue;
-            }
-        };
+        let path = base_path.join(name);
         let path_str = path.to_string_lossy().to_string();
 
         print!(
@@ -639,6 +629,48 @@ fn delete_worktrees(worktrees: &[&str], force: bool) -> Result<()> {
 // Branch Functions
 // ============================================================================
 
+/// Represents a branch deletion target (local or remote)
+#[derive(Clone)]
+enum BranchTarget {
+    Local,
+    Remote(String),
+}
+
+impl BranchTarget {
+    fn label(&self) -> &str {
+        match self {
+            BranchTarget::Local => "local",
+            BranchTarget::Remote(r) => r,
+        }
+    }
+
+    fn branch_type(&self) -> &str {
+        match self {
+            BranchTarget::Local => "local branches",
+            BranchTarget::Remote(_) => "remote branches",
+        }
+    }
+
+    fn get_branches(&self) -> Result<Vec<String>> {
+        match self {
+            BranchTarget::Local => get_local_branches(),
+            BranchTarget::Remote(remote) => get_remote_branches(remote),
+        }
+    }
+
+    fn delete_branch(&self, branch: &str, force: bool) -> GitCommandResult {
+        match self {
+            BranchTarget::Local => {
+                let flag = if force { "-D" } else { "-d" };
+                execute_git_command(&["branch", flag, branch])
+            }
+            BranchTarget::Remote(remote) => {
+                execute_git_command(&["push", remote, "--delete", branch])
+            }
+        }
+    }
+}
+
 fn is_protected_branch(name: &str) -> bool {
     const DEFAULT_PROTECTED: &[&str] = &["main", "master", "develop", "development"];
 
@@ -660,7 +692,8 @@ fn get_remote_branches(remote: &str) -> Result<Vec<String>> {
         .context("Failed to execute git branch -r")?;
 
     if !output.status.success() {
-        return Err(anyhow!("Failed to list remote branches"));
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("Failed to list remote branches: {}", stderr.trim());
     }
 
     let prefix = format!("{}/", remote);
@@ -681,7 +714,8 @@ fn get_current_branch() -> Result<String> {
         .context("Failed to execute git rev-parse --abbrev-ref HEAD")?;
 
     if !output.status.success() {
-        return Err(anyhow!("Failed to get current branch"));
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("Failed to get current branch: {}", stderr.trim());
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
@@ -694,10 +728,11 @@ fn get_local_branches() -> Result<Vec<String>> {
         .context("Failed to execute git branch")?;
 
     if !output.status.success() {
-        return Err(anyhow!("Failed to list local branches"));
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("Failed to list local branches: {}", stderr.trim());
     }
 
-    let current = get_current_branch().unwrap_or_default();
+    let current = get_current_branch()?;
 
     let branches: Vec<String> = String::from_utf8_lossy(&output.stdout)
         .lines()
@@ -716,22 +751,17 @@ fn clean_branches(
 ) -> Result<()> {
     match pattern {
         Some(pattern) => {
-            let (scope, branch_pattern) = parse_branch_pattern(&pattern)?;
-            match scope {
-                BranchScope::Local => clean_local_branches_by_pattern(&branch_pattern, force, dry_run, json),
-                BranchScope::Remote { remote } => clean_remote_branches_by_pattern(&branch_pattern, &remote, force, dry_run, json),
-            }
+            let (target, branch_pattern) = parse_branch_pattern(&pattern)?;
+            clean_branches_by_pattern(&target, &branch_pattern, force, dry_run, json)
         }
         None => {
             if dry_run {
-                // For dry-run without pattern, default to showing local branches
                 let branches = get_local_branches()?;
                 let deletable: Vec<&str> = branches
                     .iter()
                     .map(|s| s.as_str())
                     .filter(|b| !is_protected_branch(b))
                     .collect();
-
                 output_dry_run(&deletable, json);
                 Ok(())
             } else {
@@ -741,20 +771,25 @@ fn clean_branches(
     }
 }
 
-fn clean_local_branches_by_pattern(
+fn clean_branches_by_pattern(
+    target: &BranchTarget,
     pattern: &str,
     force: bool,
     dry_run: bool,
     json: bool,
 ) -> Result<()> {
-    let branches = get_local_branches()?;
+    let branches = target.get_branches()?;
 
     if branches.is_empty() {
-        handle_empty_result(json, dry_run, "No local branches found.");
+        let msg = match target {
+            BranchTarget::Local => "No local branches found.".to_string(),
+            BranchTarget::Remote(r) => format!("No remote branches found on '{}'.", r),
+        };
+        handle_empty_result(json, dry_run, &msg);
         return Ok(());
     }
 
-    let regex = Regex::new(pattern).map_err(|e| anyhow!("Invalid regex pattern: {}", e))?;
+    let regex = Regex::new(pattern).context("Invalid regex pattern")?;
 
     let matching: Vec<&str> = branches
         .iter()
@@ -763,7 +798,11 @@ fn clean_local_branches_by_pattern(
         .collect();
 
     if matching.is_empty() {
-        handle_empty_result(json, dry_run, &format!("No local branches matching '{}' found.", pattern));
+        let msg = match target {
+            BranchTarget::Local => format!("No local branches matching '{}' found.", pattern),
+            BranchTarget::Remote(r) => format!("No remote branches matching '{}' found on '{}'.", pattern, r),
+        };
+        handle_empty_result(json, dry_run, &msg);
         return Ok(());
     }
 
@@ -778,80 +817,25 @@ fn clean_local_branches_by_pattern(
     display_protected_items(&protected, "branches");
 
     if deletable.is_empty() {
-        println!(
-            "{}",
-            style("No deletable branches (all matched are protected).").yellow()
-        );
+        println!("{}", style("No deletable branches (all matched are protected).").yellow());
         return Ok(());
     }
 
-    display_items_for_deletion(&deletable, "local branches", &format!("matching '{}'", pattern));
+    let context = match target {
+        BranchTarget::Local => format!("matching '{}'", pattern),
+        BranchTarget::Remote(r) => format!("matching '{}' on '{}'", pattern, r),
+    };
+    display_items_for_deletion(&deletable, target.branch_type(), &context);
 
-    if !force && !confirm_deletion("branches", deletable.len(), "local")? {
+    if !force && !confirm_deletion("branches", deletable.len(), target.label())? {
         println!("{}", style("Operation cancelled.").yellow());
         return Ok(());
     }
 
-    delete_local_branches(&deletable, force)
-}
-
-fn clean_remote_branches_by_pattern(
-    pattern: &str,
-    remote: &str,
-    force: bool,
-    dry_run: bool,
-    json: bool,
-) -> Result<()> {
-    let branches = get_remote_branches(remote)?;
-
-    if branches.is_empty() {
-        handle_empty_result(json, dry_run, &format!("No remote branches found on '{}'.", remote));
-        return Ok(());
-    }
-
-    let regex = Regex::new(pattern).map_err(|e| anyhow!("Invalid regex pattern: {}", e))?;
-
-    let matching: Vec<&str> = branches
-        .iter()
-        .filter(|b| regex.is_match(b))
-        .map(|s| s.as_str())
-        .collect();
-
-    if matching.is_empty() {
-        handle_empty_result(json, dry_run, &format!("No remote branches matching '{}' found on '{}'.", pattern, remote));
-        return Ok(());
-    }
-
-    let (protected, deletable): (Vec<&str>, Vec<&str>) =
-        matching.into_iter().partition(|b| is_protected_branch(b));
-
-    if dry_run {
-        output_dry_run(&deletable, json);
-        return Ok(());
-    }
-
-    display_protected_items(&protected, "branches");
-
-    if deletable.is_empty() {
-        println!(
-            "{}",
-            style("No deletable branches (all matched are protected).").yellow()
-        );
-        return Ok(());
-    }
-
-    display_items_for_deletion(&deletable, "remote branches", &format!("matching '{}' on '{}'", pattern, remote));
-
-    if !force && !confirm_deletion("branches", deletable.len(), remote)? {
-        println!("{}", style("Operation cancelled.").yellow());
-        return Ok(());
-    }
-
-    delete_remote_branches(&deletable, remote)
+    delete_branches(target, &deletable, force)
 }
 
 fn clean_branches_interactive(force: bool) -> Result<()> {
-    // First, ask user to select scope (local or remote)
     let remotes = get_configured_remotes()?;
 
     let mut scope_options = vec![style("Local branches").cyan().to_string()];
@@ -872,16 +856,17 @@ fn clean_branches_interactive(force: bool) -> Result<()> {
         }
     };
 
-    if scope_selection == 0 {
-        clean_local_branches_interactive(force)
+    let target = if scope_selection == 0 {
+        BranchTarget::Local
     } else {
-        let remote = &remotes[scope_selection - 1];
-        clean_remote_branches_interactive(remote, force)
-    }
+        BranchTarget::Remote(remotes[scope_selection - 1].clone())
+    };
+
+    clean_branches_interactive_for_target(&target, force)
 }
 
-fn clean_local_branches_interactive(force: bool) -> Result<()> {
-    let branches = get_local_branches()?;
+fn clean_branches_interactive_for_target(target: &BranchTarget, force: bool) -> Result<()> {
+    let branches = target.get_branches()?;
 
     let (protected, deletable): (Vec<&str>, Vec<&str>) = branches
         .iter()
@@ -891,99 +876,37 @@ fn clean_local_branches_interactive(force: bool) -> Result<()> {
     display_protected_items(&protected, "branches (not selectable)");
 
     if deletable.is_empty() {
-        println!(
-            "{}",
-            style("No deletable local branches (all are protected).").yellow()
-        );
+        let msg = match target {
+            BranchTarget::Local => "No deletable local branches (all are protected).".to_string(),
+            BranchTarget::Remote(r) => format!("No deletable remote branches on '{}' (all are protected).", r),
+        };
+        println!("{}", style(msg).yellow());
         return Ok(());
     }
 
-    let selected = interactive_multi_select(
-        &deletable,
-        "Select local branches to delete (space to toggle, enter to confirm, esc to cancel)",
-        "branches",
-    )?;
+    let prompt = match target {
+        BranchTarget::Local => "Select local branches to delete (space to toggle, enter to confirm, esc to cancel)".to_string(),
+        BranchTarget::Remote(r) => format!("Select branches to delete from '{}' (space to toggle, enter to confirm, esc to cancel)", r),
+    };
+
+    let selected = interactive_multi_select(&deletable, &prompt, "branches")?;
 
     let selected = match selected {
         Some(s) => s,
         None => return Ok(()),
     };
 
-    display_items_for_deletion(&selected, "local branches", "selected for deletion");
+    display_items_for_deletion(&selected, target.branch_type(), "selected for deletion");
 
-    if !force && !confirm_deletion("branches", selected.len(), "local")? {
+    if !force && !confirm_deletion("branches", selected.len(), target.label())? {
         println!("{}", style("Operation cancelled.").yellow());
         return Ok(());
     }
 
-    delete_local_branches(&selected, force)
+    delete_branches(target, &selected, force)
 }
 
-fn clean_remote_branches_interactive(remote: &str, force: bool) -> Result<()> {
-    let branches = get_remote_branches(remote)?;
-
-    let (protected, deletable): (Vec<&str>, Vec<&str>) = branches
-        .iter()
-        .map(|s| s.as_str())
-        .partition(|b| is_protected_branch(b));
-
-    display_protected_items(&protected, "branches (not selectable)");
-
-    if deletable.is_empty() {
-        println!(
-            "{}",
-            style(format!("No deletable remote branches on '{}' (all are protected).", remote)).yellow()
-        );
-        return Ok(());
-    }
-
-    let selected = interactive_multi_select(
-        &deletable,
-        &format!("Select branches to delete from '{}' (space to toggle, enter to confirm, esc to cancel)", remote),
-        "branches",
-    )?;
-
-    let selected = match selected {
-        Some(s) => s,
-        None => return Ok(()),
-    };
-
-    display_items_for_deletion(&selected, "remote branches", "selected for deletion");
-
-    if !force && !confirm_deletion("branches", selected.len(), remote)? {
-        println!("{}", style("Operation cancelled.").yellow());
-        return Ok(());
-    }
-
-    delete_remote_branches(&selected, remote)
-}
-
-fn delete_local_branches(branches: &[&str], force: bool) -> Result<()> {
-    let mut deleted = 0;
-    let mut failed = 0;
-    let flag = if force { "-D" } else { "-d" };
-
-    println!();
-    for branch in branches {
-        print!(
-            "{} {}... ",
-            style("Deleting").red(),
-            style(*branch).yellow().bold()
-        );
-
-        let result = execute_git_command(&["branch", flag, branch]);
-        print_deletion_result(&result);
-        match result {
-            GitCommandResult::Success => deleted += 1,
-            GitCommandResult::Failure(_) => failed += 1,
-        }
-    }
-
-    print_deletion_summary(deleted, failed, "local branches", "local");
-    Ok(())
-}
-
-fn delete_remote_branches(branches: &[&str], remote: &str) -> Result<()> {
+fn delete_branches(target: &BranchTarget, branches: &[&str], force: bool) -> Result<()> {
     let mut deleted = 0;
     let mut failed = 0;
 
@@ -995,7 +918,7 @@ fn delete_remote_branches(branches: &[&str], remote: &str) -> Result<()> {
             style(*branch).yellow().bold()
         );
 
-        let result = execute_git_command(&["push", remote, "--delete", branch]);
+        let result = target.delete_branch(branch, force);
         print_deletion_result(&result);
         match result {
             GitCommandResult::Success => deleted += 1,
@@ -1003,7 +926,7 @@ fn delete_remote_branches(branches: &[&str], remote: &str) -> Result<()> {
         }
     }
 
-    print_deletion_summary(deleted, failed, "branches", remote);
+    print_deletion_summary(deleted, failed, target.branch_type(), target.label());
     Ok(())
 }
 
@@ -1025,12 +948,32 @@ mod tests {
     fn test_add_worktree_cli() {
         use clap::Parser;
 
-        let cli = Cli::try_parse_from(["killallgit", "add", "worktree", "feature-x"]).unwrap();
+        let cli = Cli::try_parse_from(["killallgit", "feature-x"]).unwrap();
+        assert_eq!(cli.name, Some("feature-x".to_string()));
+        assert!(cli.command.is_none());
+    }
+
+    #[test]
+    fn test_worktree_subcommand_cli() {
+        use clap::Parser;
+
+        let cli = Cli::try_parse_from(["killallgit", "worktree"]).unwrap();
+        assert!(cli.name.is_none());
+        assert!(matches!(cli.command, Some(Commands::Worktree)));
+
+        let cli = Cli::try_parse_from(["killallgit", "worktrees"]).unwrap();
+        assert!(cli.name.is_none());
+        assert!(matches!(cli.command, Some(Commands::Worktrees)));
+    }
+
+    #[test]
+    fn test_clean_no_subresource_cli() {
+        use clap::Parser;
+
+        let cli = Cli::try_parse_from(["killallgit", "clean"]).unwrap();
         match cli.command {
-            Some(Commands::Add { resource: AddResource::Worktree { name } }) => {
-                assert_eq!(name, "feature-x");
-            }
-            _ => panic!("Expected Add Worktree command"),
+            Some(Commands::Clean { resource: None }) => {}
+            _ => panic!("Expected Clean with no resource"),
         }
     }
 
@@ -1042,7 +985,7 @@ mod tests {
         let cli = Cli::try_parse_from(["killallgit", "clean", "worktrees"]).unwrap();
         match cli.command {
             Some(Commands::Clean {
-                resource: CleanResource::Worktrees { pattern, force, all, dry_run, json },
+                resource: Some(CleanResource::Worktrees { pattern, force, all, dry_run, json }),
             }) => {
                 assert_eq!(pattern, None);
                 assert!(!force);
@@ -1059,7 +1002,7 @@ mod tests {
         ]).unwrap();
         match cli.command {
             Some(Commands::Clean {
-                resource: CleanResource::Worktrees { pattern, force, all, dry_run, json },
+                resource: Some(CleanResource::Worktrees { pattern, force, all, dry_run, json }),
             }) => {
                 assert_eq!(pattern, Some("feature/.*".to_string()));
                 assert!(force);
@@ -1074,7 +1017,7 @@ mod tests {
         let cli = Cli::try_parse_from(["killallgit", "clean", "worktrees", "--all"]).unwrap();
         match cli.command {
             Some(Commands::Clean {
-                resource: CleanResource::Worktrees { pattern, all, .. },
+                resource: Some(CleanResource::Worktrees { pattern, all, .. }),
             }) => {
                 assert_eq!(pattern, None);
                 assert!(all);
@@ -1091,7 +1034,7 @@ mod tests {
         let cli = Cli::try_parse_from(["killallgit", "clean", "branches"]).unwrap();
         match cli.command {
             Some(Commands::Clean {
-                resource: CleanResource::Branches { pattern, force, dry_run, json },
+                resource: Some(CleanResource::Branches { pattern, force, dry_run, json }),
             }) => {
                 assert_eq!(pattern, None);
                 assert!(!force);
@@ -1107,7 +1050,7 @@ mod tests {
         ]).unwrap();
         match cli.command {
             Some(Commands::Clean {
-                resource: CleanResource::Branches { pattern, force, dry_run, json },
+                resource: Some(CleanResource::Branches { pattern, force, dry_run, json }),
             }) => {
                 assert_eq!(pattern, Some("feature/.*".to_string()));
                 assert!(force);
@@ -1123,7 +1066,7 @@ mod tests {
         ]).unwrap();
         match cli.command {
             Some(Commands::Clean {
-                resource: CleanResource::Branches { pattern, force, .. },
+                resource: Some(CleanResource::Branches { pattern, force, .. }),
             }) => {
                 assert_eq!(pattern, Some("origin/feature/.*".to_string()));
                 assert!(force);
@@ -1137,7 +1080,7 @@ mod tests {
         ]).unwrap();
         match cli.command {
             Some(Commands::Clean {
-                resource: CleanResource::Branches { dry_run, json, .. },
+                resource: Some(CleanResource::Branches { dry_run, json, .. }),
             }) => {
                 assert!(dry_run);
                 assert!(json);
@@ -1162,7 +1105,7 @@ mod tests {
 
     #[test]
     fn test_is_protected_branch_with_env() {
-        // SAFETY: This test runs in isolation; env var manipulation is safe here
+        // SAFETY: Single-threaded test; no other code reads this env var concurrently
         unsafe {
             std::env::set_var("KILLALLGIT_PROTECTED", "release, staging");
         }

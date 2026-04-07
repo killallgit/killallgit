@@ -158,6 +158,9 @@ In-Game:
 - **2026-04-07:** Mock GitHub data as a static struct rather than a test fixture file. Stays in-code for discoverability, easy to grep and replace when real API layer lands.
 - **2026-04-07:** Single save file rather than per-slot saves. No need for multiple save slots yet — YAGNI.
 - **2026-04-07:** EGameVariant enum with map path mapping rather than string-based variant names. Type-safe, compiler-checked, no typo risk.
+- **2026-04-07:** Replaced UGameDataDebugWidget with a ShowSaveData exec console command using GEngine->AddOnScreenDebugMessage(). The widget was the heaviest solution for debug text — a full UUserWidget ticking every frame. Console command is zero-cost when not used. Backlog: migrate to a Gameplay Debugger category for persistent, toggleable overlay.
+- **2026-04-07:** Used mutable for cache fields in USaveDataSubsystem rather than const_cast. Caching is a classic logical-const operation.
+- **2026-04-07:** Kept concrete UJsonFileSaveProvider type in USaveDataSubsystem header (UPROPERTY needs it for GC). Accepted tradeoff — the field is private and UE reflection requires a concrete UObject-derived type.
 
 ## Status
 
@@ -169,6 +172,6 @@ In-Game:
 - [x] UMainMenuWidget
 - [x] AMainMenuGameMode
 - [x] Debug display (ShowSaveData exec command)
-- [ ] Lvl_MainMenu (requires manual editor work)
+- [x] Lvl_MainMenu
 - [x] Config: set default map
 - [x] Tests

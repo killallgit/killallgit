@@ -35,6 +35,13 @@ tasks:
         -unattended -nopause -NullRHI -nosplash -nosound -stdout
         2>&1 | tee {{.LOG_DIR}}/test.log
 
+  editor:
+    desc: Launch the Unreal Editor
+    cmds:
+      - >-
+        open {{.UE_ROOT}}/Engine/Binaries/Mac/UnrealEditor.app
+        --args "{{.PROJECT_FILE}}"
+
   check:
     desc: Compile and run tests
     cmds:

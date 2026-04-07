@@ -32,12 +32,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Save Data")
 	FSaveDataPayload GetCurrentSaveData() const;
 
+	UFUNCTION(Exec)
+	void ShowSaveData();
+
 private:
 	UPROPERTY()
 	TObjectPtr<UJsonFileSaveProvider> Provider;
 
-	FSaveDataPayload CachedPayload;
-	bool bHasCachedPayload = false;
+	mutable FSaveDataPayload CachedPayload;
+	mutable bool bHasCachedPayload = false;
 
 	void CreateProvider(const FString& SaveDirectory = FString());
 };

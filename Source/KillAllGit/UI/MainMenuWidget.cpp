@@ -9,11 +9,11 @@ void UMainMenuWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 
-	NewGameButton->OnClicked.AddDynamic(this, &UMainMenuWidget::OnNewGameClicked);
-	ContinueButton->OnClicked.AddDynamic(this, &UMainMenuWidget::OnContinueClicked);
-	CombatButton->OnClicked.AddDynamic(this, &UMainMenuWidget::OnSelectCombat);
-	SideScrollingButton->OnClicked.AddDynamic(this, &UMainMenuWidget::OnSelectSideScrolling);
-	PlatformingButton->OnClicked.AddDynamic(this, &UMainMenuWidget::OnSelectPlatforming);
+	NewGameButton->OnClicked.AddUniqueDynamic(this, &UMainMenuWidget::OnNewGameClicked);
+	ContinueButton->OnClicked.AddUniqueDynamic(this, &UMainMenuWidget::OnContinueClicked);
+	CombatButton->OnClicked.AddUniqueDynamic(this, &UMainMenuWidget::OnSelectCombat);
+	SideScrollingButton->OnClicked.AddUniqueDynamic(this, &UMainMenuWidget::OnSelectSideScrolling);
+	PlatformingButton->OnClicked.AddUniqueDynamic(this, &UMainMenuWidget::OnSelectPlatforming);
 
 	ShowMainMenu();
 }

@@ -80,13 +80,11 @@ Minimal game mode for the main menu level.
 - Sets input mode to UI-only
 - Shows mouse cursor
 
-### UGameDataDebugWidget (UUserWidget)
+### Debug Display
 
-Debug overlay displaying the current save data.
+`USaveDataSubsystem::ShowSaveData()` — exec console command. Type `ShowSaveData` in the console to print current save data to the screen for 5 seconds via `GEngine->AddOnScreenDebugMessage()`.
 
-- Reads `FSaveDataPayload` from `USaveDataSubsystem`
-- Displays variant name and all GitHub JSON fields as text
-- Toggled via console command (`ToggleGameDataDebug`)
+**Backlog:** Replace with a custom Gameplay Debugger category (`FGameplayDebuggerCategory`) for a toggleable, persistent debug overlay that integrates with UE's built-in debug system (`'` key).
 
 ### Mock Data
 
@@ -126,9 +124,9 @@ Main Menu
       → UGameplayStatics::OpenLevel(payload.Variant map path)
 
 In-Game:
-  → UGameDataDebugWidget
-      → Reads USaveDataSubsystem::GetCurrentSaveData()
-      → Displays variant + GitHub JSON fields as text
+  → Console command "ShowSaveData"
+      → USaveDataSubsystem::ShowSaveData()
+      → Prints variant + GitHub JSON fields to screen via GEngine
 ```
 
 ## Level Setup
@@ -149,7 +147,6 @@ In-Game:
 | `FMockGitHubData` | `Source/KillAllGit/SaveSystem/MockGitHubData.h` |
 | `UMainMenuWidget` | `Source/KillAllGit/UI/MainMenuWidget.h/.cpp` |
 | `AMainMenuGameMode` | `Source/KillAllGit/UI/MainMenuGameMode.h/.cpp` |
-| `UGameDataDebugWidget` | `Source/KillAllGit/UI/GameDataDebugWidget.h/.cpp` |
 | Main menu level | `Content/MainMenu/Lvl_MainMenu.umap` |
 | Save data tests | `Source/KillAllGit/Tests/SaveSystem/JsonFileSaveProviderTest.cpp` |
 | Subsystem tests | `Source/KillAllGit/Tests/SaveSystem/SaveDataSubsystemTest.cpp` |
@@ -171,7 +168,7 @@ In-Game:
 - [x] FMockGitHubData
 - [x] UMainMenuWidget
 - [x] AMainMenuGameMode
-- [x] UGameDataDebugWidget
+- [x] Debug display (ShowSaveData exec command)
 - [ ] Lvl_MainMenu (requires manual editor work)
 - [x] Config: set default map
 - [x] Tests

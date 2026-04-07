@@ -1,5 +1,6 @@
 #include "SaveDataSubsystem.h"
 #include "JsonFileSaveProvider.h"
+#include "Engine/Engine.h"
 
 void USaveDataSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -36,9 +37,8 @@ FSaveDataPayload USaveDataSubsystem::LoadSaveData() const
 
 	FSaveDataPayload Payload = Provider->LoadSaveData();
 
-	USaveDataSubsystem* MutableThis = const_cast<USaveDataSubsystem*>(this);
-	MutableThis->CachedPayload = Payload;
-	MutableThis->bHasCachedPayload = true;
+	CachedPayload = Payload;
+	bHasCachedPayload = true;
 
 	return Payload;
 }
@@ -82,4 +82,26 @@ FSaveDataPayload USaveDataSubsystem::GetCurrentSaveData() const
 		return CachedPayload;
 	}
 	return LoadSaveData();
+}
+
+void USaveDataSubsystem::ShowSaveData()
+{
+	if (!GEngine)
+	{
+		return;
+	}
+
+	if (!HasSaveData())
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Yellow, TEXT("No save data"));
+		return;
+	}
+
+	const FSaveDataPayload Payload = GetCurrentSaveData();
+	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green,
+		FString::Printf(TEXT("Variant: %s | Created: %s"),
+			*GameVariantUtils::VariantToString(Payload.Variant),
+			*Payload.CreatedAt.ToString()));
+	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green,
+		FString::Printf(TEXT("GitHub Data: %s"), *Payload.GitHubDataJson));
 }

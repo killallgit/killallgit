@@ -18,13 +18,17 @@ public class KillAllGit : ModuleRules
 			"StateTreeModule",
 			"GameplayStateTreeModule",
 			"UMG",
-			"Slate"
+			"Slate",
+			"Json",
+			"JsonUtilities"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });
 
 		PublicIncludePaths.AddRange(new string[] {
 			"KillAllGit",
+			"KillAllGit/GitHub",
+			"KillAllGit/Tests",
 			"KillAllGit/Variant_Platforming",
 			"KillAllGit/Variant_Platforming/Animation",
 			"KillAllGit/Variant_Combat",
@@ -37,15 +41,10 @@ public class KillAllGit : ModuleRules
 			"KillAllGit/Variant_SideScrolling/AI",
 			"KillAllGit/Variant_SideScrolling/Gameplay",
 			"KillAllGit/Variant_SideScrolling/Interfaces",
-			"KillAllGit/Variant_SideScrolling/UI"
+			"KillAllGit/Variant_SideScrolling/UI",
+			"KillAllGit/SaveSystem",
+			"KillAllGit/UI",
+			"KillAllGit/Tests/SaveSystem"
 		});
-
-		// Uncomment if you are using Slate UI
-		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
-
-		// Uncomment if you are using online features
-		// PrivateDependencyModuleNames.Add("OnlineSubsystem");
-
-		// To include OnlineSubsystemSteam, add it to the plugins section in your uproject file with the Enabled attribute set to true
 	}
 }

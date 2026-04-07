@@ -164,14 +164,14 @@ In-Game:
 
 ## Status
 
-- [ ] ISaveDataProvider
-- [ ] FSaveDataPayload / EGameVariant
-- [ ] UJsonFileSaveProvider
-- [ ] USaveDataSubsystem
-- [ ] FMockGitHubData
-- [ ] UMainMenuWidget
-- [ ] AMainMenuGameMode
-- [ ] UGameDataDebugWidget
-- [ ] Lvl_MainMenu
-- [ ] Config: set default map
-- [ ] Tests
+- [x] ISaveDataProvider
+- [x] FSaveDataPayload / EGameVariant
+- [x] UJsonFileSaveProvider
+- [x] USaveDataSubsystem
+- [x] FMockGitHubData
+- [x] UMainMenuWidget
+- [x] AMainMenuGameMode
+- [x] UGameDataDebugWidget
+- [ ] Lvl_MainMenu (requires manual editor work)
+- [x] Config: set default map
+- [x] Tests

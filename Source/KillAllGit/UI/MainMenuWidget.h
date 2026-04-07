@@ -6,7 +6,6 @@
 #include "MainMenuWidget.generated.h"
 
 class UButton;
-class UTextBlock;
 class UVerticalBox;
 class USaveDataSubsystem;
 
@@ -19,14 +18,28 @@ protected:
 	virtual void NativeConstruct() override;
 
 private:
-	UPROPERTY()
+	// Main menu panel — contains New Game and Continue
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UVerticalBox> MainMenuBox;
+
+	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UButton> NewGameButton;
 
-	UPROPERTY()
+	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UButton> ContinueButton;
 
-	UPROPERTY()
+	// Variant picker panel — contains the three variant buttons
+	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UVerticalBox> VariantPickerBox;
+
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UButton> CombatButton;
+
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UButton> SideScrollingButton;
+
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UButton> PlatformingButton;
 
 	UFUNCTION()
 	void OnNewGameClicked();

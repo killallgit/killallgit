@@ -18,7 +18,9 @@ public class KillAllGit : ModuleRules
 			"StateTreeModule",
 			"GameplayStateTreeModule",
 			"UMG",
-			"Slate"
+			"Slate",
+			"Json",
+			"JsonUtilities"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });
@@ -40,7 +42,10 @@ public class KillAllGit : ModuleRules
 			"KillAllGit/Variant_SideScrolling/AI",
 			"KillAllGit/Variant_SideScrolling/Gameplay",
 			"KillAllGit/Variant_SideScrolling/Interfaces",
-			"KillAllGit/Variant_SideScrolling/UI"
+			"KillAllGit/Variant_SideScrolling/UI",
+			"KillAllGit/SaveSystem",
+			"KillAllGit/UI",
+			"KillAllGit/Tests/SaveSystem"
 		});
 
 		// Uncomment if you are using Slate UI

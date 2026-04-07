@@ -25,6 +25,9 @@ public class KillAllGit : ModuleRules
 
 		PublicIncludePaths.AddRange(new string[] {
 			"KillAllGit",
+			"KillAllGit/GitHub",
+			"KillAllGit/Tests",
+			"KillAllGit/Tests/GitHub",
 			"KillAllGit/Variant_Platforming",
 			"KillAllGit/Variant_Platforming/Animation",
 			"KillAllGit/Variant_Combat",

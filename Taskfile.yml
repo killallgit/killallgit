@@ -1,0 +1,42 @@
+version: "3"
+
+vars:
+  UE_ROOT: /Users/ryan/Code/unreal/UE_5.7
+  PROJECT_FILE: /Users/ryan/Code/unreal/projects/KillAllGit/KillAllGit.uproject
+  PLATFORM: Mac
+  CONFIG: Development
+  LOG_DIR: logs
+
+tasks:
+  compile:
+    desc: Compile the editor target (Development, Mac)
+    cmds:
+      - mkdir -p {{.LOG_DIR}}
+      - >-
+        {{.UE_ROOT}}/Engine/Build/BatchFiles/RunUBT.sh
+        KillAllGitEditor {{.PLATFORM}} {{.CONFIG}}
+        -project="{{.PROJECT_FILE}}"
+        2>&1 | tee {{.LOG_DIR}}/compile.log
+
+  compile:clean:
+    desc: Clean and recompile from scratch
+    cmds:
+      - rm -rf Binaries Intermediate
+      - task: compile
+
+  test:
+    desc: Run unit tests (headless)
+    cmds:
+      - mkdir -p {{.LOG_DIR}}
+      - >-
+        {{.UE_ROOT}}/Engine/Binaries/Mac/UnrealEditor.app/Contents/MacOS/UnrealEditor
+        {{.PROJECT_FILE}}
+        -ExecCmds="Automation RunTests KillAllGit;Quit"
+        -unattended -nopause -NullRHI -nosplash -nosound -stdout
+        2>&1 | tee {{.LOG_DIR}}/test.log
+
+  check:
+    desc: Compile and run tests
+    cmds:
+      - task: compile
+      - task: test

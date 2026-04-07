@@ -30,6 +30,7 @@ Single module: `KillAllGit`. All C++ source lives under `Source/KillAllGit/`.
 ```
 Source/KillAllGit/
   GitHub/                   ← GitHub data layer
+  Tests/                    ← Automation tests (mirrors source structure)
   Variant_Combat/           ← Combat gameplay variant
   Variant_SideScrolling/    ← Side-scrolling gameplay variant
   Variant_Platforming/      ← Platforming gameplay variant

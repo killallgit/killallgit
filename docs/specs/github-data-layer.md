@@ -71,9 +71,9 @@ RequestRepositoryData("microsoft", "vscode")
 | `FGitHubRepositoryData` | `Source/KillAllGit/GitHub/GitHubTypes.h` |
 | `UGitHubDebugWidget` | `Source/KillAllGit/UI/GitHubDebugWidget.h/.cpp` |
 | Repository query | `Content/Queries/GetRepository.graphql` |
-| API client tests | `Source/KillAllGit/GitHub/GitHubAPIClient.test.cpp` |
-| Cache tests | `Source/KillAllGit/GitHub/GitHubDataCache.test.cpp` |
-| Subsystem tests | `Source/KillAllGit/GitHub/GitHubDataSubsystem.test.cpp` |
+| API client tests | `Source/KillAllGit/Tests/GitHub/GitHubAPIClientTest.cpp` |
+| Cache tests | `Source/KillAllGit/Tests/GitHub/GitHubDataCacheTest.cpp` |
+| Subsystem tests | `Source/KillAllGit/Tests/GitHub/GitHubDataSubsystemTest.cpp` |
 
 ## Decisions Log
 

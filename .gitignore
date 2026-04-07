@@ -71,6 +71,9 @@ SourceArt/**/*.tga
 .DS_Store
 ._*
 
+# Build logs
+logs/
+
 # Secrets — never commit tokens or credentials
 *.secret
 .env

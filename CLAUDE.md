@@ -1,12 +1,16 @@
 # KillAllGit
 
+**IMPORTANT: Use the latest Unreal Engine 5.7 docs via Context7 (library ID: `/websites/dev_epicgames_en-us_unreal-engine`). Always query Context7 before making assumptions about UE APIs.**
+
 Unreal Engine 5.7 C++ project. Procedurally generates terrain from GitHub repository data.
 
 ## Build
 
 ```bash
-# Build from command line (Mac)
-# Open in Unreal Editor for most workflows
+task compile          # compile (Development, Mac)
+task compile:clean    # clean and recompile from scratch
+task test             # run automation tests headless
+task check            # compile + test
 ```
 
 ## Project Structure
@@ -41,8 +45,11 @@ docs/                       Architecture and design specs
 
 ### Testing
 
-- Use Unreal Automation Framework (`IMPLEMENT_SIMPLE_AUTOMATION_TEST`).
-- Test files live alongside implementation: `MyClass.test.cpp` next to `MyClass.cpp`.
+- Use Unreal Automation Framework (`IMPLEMENT_SIMPLE_AUTOMATION_TEST`, `IMPLEMENT_COMPLEX_AUTOMATION_TEST`).
+- Use latent tests for async operations (HTTP, delegates).
+- Test files live in `Source/KillAllGit/Tests/`, mirroring the source structure.
+- Test path convention: `"KillAllGit.<System>.<Component>.<TestName>"` (e.g. `"KillAllGit.GitHub.DataCache.WriteThenRead"`).
+- Flags: `EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter` for standard tests.
 
 ### Naming
 

@@ -8,7 +8,7 @@ Procedurally generated terrain driven by GitHub repository data. Built in Unreal
 |--------|------|--------|-------------|
 | Gameplay Variants | — | Scaffolded | Combat, SideScrolling, Platforming templates (default UE scaffolding) |
 | Main Menu & Save System | [main-menu-save-system](specs/main-menu-save-system.md) | Implemented | Main menu UI, variant picker, JSON-backed save system |
-| GitHub Data Layer | [github-data-layer](specs/github-data-layer.md) | Planned | Fetches, caches, and serves GitHub repo data |
+| GitHub Data Layer | [github-data-layer](specs/github-data-layer.md) | In Progress | Fetches, caches, and serves GitHub repo data |
 | Terrain Generation | — | Not started | Procedural terrain from repo data |
 
 ## Data Flow

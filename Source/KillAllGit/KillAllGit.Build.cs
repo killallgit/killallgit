@@ -20,7 +20,8 @@ public class KillAllGit : ModuleRules
 			"UMG",
 			"Slate",
 			"Json",
-			"JsonUtilities"
+			"JsonUtilities",
+			"HTTP"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });
@@ -44,7 +45,8 @@ public class KillAllGit : ModuleRules
 			"KillAllGit/Variant_SideScrolling/UI",
 			"KillAllGit/SaveSystem",
 			"KillAllGit/UI",
-			"KillAllGit/Tests/SaveSystem"
+			"KillAllGit/Tests/SaveSystem",
+			"KillAllGit/Tests/GitHub"
 		});
 	}
 }

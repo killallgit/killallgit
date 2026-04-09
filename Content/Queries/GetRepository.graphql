@@ -1,0 +1,17 @@
+query GetRepository($owner: String!, $name: String!) {
+  repository(owner: $owner, name: $name) {
+    name
+    description
+    url
+    stargazerCount
+    forkCount
+    createdAt
+    updatedAt
+    primaryLanguage {
+      name
+    }
+    defaultBranchRef {
+      name
+    }
+  }
+}

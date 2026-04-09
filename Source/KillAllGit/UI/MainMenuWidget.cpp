@@ -1,21 +1,29 @@
 #include "MainMenuWidget.h"
-#include "Components/Button.h"
-#include "Components/VerticalBox.h"
+#include "KillAllGit.h"
+#include "MenuButton.h"
+#include "Components/EditableText.h"
+#include "Components/WidgetSwitcher.h"
 #include "SaveDataSubsystem.h"
+#include "GitHubDataSubsystem.h"
 #include "MockGitHubData.h"
 #include "Kismet/GameplayStatics.h"
+
+static const FString DefaultRepo = TEXT("microsoft/vscode");
 
 void UMainMenuWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 
-	NewGameButton->OnClicked.AddUniqueDynamic(this, &UMainMenuWidget::OnNewGameClicked);
-	ContinueButton->OnClicked.AddUniqueDynamic(this, &UMainMenuWidget::OnContinueClicked);
-	CombatButton->OnClicked.AddUniqueDynamic(this, &UMainMenuWidget::OnSelectCombat);
-	SideScrollingButton->OnClicked.AddUniqueDynamic(this, &UMainMenuWidget::OnSelectSideScrolling);
-	PlatformingButton->OnClicked.AddUniqueDynamic(this, &UMainMenuWidget::OnSelectPlatforming);
+	Btn_NewGame->OnClicked.AddUniqueDynamic(this, &UMainMenuWidget::OnNewGameClicked);
+	Btn_Continue->OnClicked.AddUniqueDynamic(this, &UMainMenuWidget::OnContinueClicked);
+	Btn_Refresh->OnClicked.AddUniqueDynamic(this, &UMainMenuWidget::OnRefreshClicked);
+	Btn_Combat->OnClicked.AddUniqueDynamic(this, &UMainMenuWidget::OnSelectCombat);
+	Btn_SideScrolling->OnClicked.AddUniqueDynamic(this, &UMainMenuWidget::OnSelectSideScrolling);
+	Btn_Platforming->OnClicked.AddUniqueDynamic(this, &UMainMenuWidget::OnSelectPlatforming);
 
-	ShowMainMenu();
+	Input_Repo->SetText(FText::FromString(DefaultRepo));
+
+	ShowTopLevel();
 }
 
 USaveDataSubsystem* UMainMenuWidget::GetSaveSubsystem() const
@@ -24,25 +32,23 @@ USaveDataSubsystem* UMainMenuWidget::GetSaveSubsystem() const
 	return GI ? GI->GetSubsystem<USaveDataSubsystem>() : nullptr;
 }
 
-void UMainMenuWidget::ShowMainMenu()
+void UMainMenuWidget::ShowTopLevel()
 {
-	MainMenuBox->SetVisibility(ESlateVisibility::Visible);
-	VariantPickerBox->SetVisibility(ESlateVisibility::Collapsed);
+	MenuSwitcher->SetActiveWidgetIndex(0);
 
 	const USaveDataSubsystem* SaveSubsystem = GetSaveSubsystem();
 	const bool bHasSave = SaveSubsystem && SaveSubsystem->HasSaveData();
-	ContinueButton->SetVisibility(bHasSave ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	Btn_Continue->SetVisibility(bHasSave ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
 }
 
-void UMainMenuWidget::ShowVariantPicker()
+void UMainMenuWidget::ShowNewGame()
 {
-	MainMenuBox->SetVisibility(ESlateVisibility::Collapsed);
-	VariantPickerBox->SetVisibility(ESlateVisibility::Visible);
+	MenuSwitcher->SetActiveWidgetIndex(1);
 }
 
 void UMainMenuWidget::OnNewGameClicked()
 {
-	ShowVariantPicker();
+	ShowNewGame();
 }
 
 void UMainMenuWidget::OnContinueClicked()
@@ -55,6 +61,32 @@ void UMainMenuWidget::OnContinueClicked()
 
 	const FSaveDataPayload Payload = SaveSubsystem->LoadSaveData();
 	StartGame(Payload.Variant, false);
+}
+
+void UMainMenuWidget::OnRefreshClicked()
+{
+	const FString RepoInput = Input_Repo->GetText().ToString();
+
+	FString Owner, Name;
+	if (!RepoInput.Split(TEXT("/"), &Owner, &Name))
+	{
+		UE_LOG(LogKillAllGit, Warning, TEXT("[MainMenu] Invalid repo format '%s' — expected owner/name"), *RepoInput);
+		return;
+	}
+
+	const UGameInstance* GI = UGameplayStatics::GetGameInstance(GetWorld());
+	if (!GI)
+	{
+		return;
+	}
+
+	UGitHubDataSubsystem* GitHubSubsystem = GI->GetSubsystem<UGitHubDataSubsystem>();
+	if (!GitHubSubsystem)
+	{
+		return;
+	}
+
+	GitHubSubsystem->RequestRepositoryData(Owner, Name, true, FOnRepositoryDataReceived());
 }
 
 void UMainMenuWidget::OnSelectCombat()

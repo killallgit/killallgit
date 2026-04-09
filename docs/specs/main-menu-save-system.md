@@ -64,13 +64,32 @@ Orchestrator. Owns the `ISaveDataProvider` instance.
 
 ### UMainMenuWidget (UUserWidget)
 
-Full-screen black widget with centered buttons.
+Full-screen black widget. Uses a `UWidgetSwitcher` to manage two panels — only one visible at a time.
 
-- "New Game" button — always visible, opens variant picker
-- "Continue" button — visible only when `USaveDataSubsystem::HasSaveData()` returns true
-- Variant picker: 3 buttons (Combat, SideScrolling, Platforming), shown after pressing New Game
-- On variant select: generates mock GitHub JSON → calls `CreateSaveData(variant, mockJson)` → `UGameplayStatics::OpenLevel()` with the variant's map path
-- On continue: calls `LoadSaveData()` → opens the level matching the saved variant
+```
+UMainMenuWidget
+└── MenuSwitcher (UWidgetSwitcher)
+    ├── Panel_TopLevel
+    │   ├── Btn_NewGame    — always visible
+    │   └── Btn_Continue   — visible only when USaveDataSubsystem::HasSaveData() returns true
+    └── Panel_NewGame
+        ├── Input_Repo     (UEditableTextBox, default: "microsoft/vscode") [debug]
+        ├── Btn_Refresh    [debug]
+        ├── Btn_Combat
+        ├── Btn_SideScrolling
+        └── Btn_Platforming
+```
+
+Widget names above are the exact `BindWidget` names the C++ expects — the Blueprint must match them exactly.
+
+**Top-level panel behavior:**
+- New Game: switches `MenuSwitcher` to `Panel_NewGame`
+- Continue: calls `LoadSaveData()` → opens the level matching the saved variant
+
+**New Game panel behavior:**
+- `Input_Repo` default value set in `NativeConstruct`
+- Refresh: parses input as `Owner/Name`, calls `UGitHubDataSubsystem::RequestRepositoryData(Owner, Name, bForceRefresh=true)`, result logged via `UE_LOG`. Does not gate navigation. [debug]
+- Variant buttons: generate mock GitHub JSON → `CreateSaveData(variant, mockJson)` → `UGameplayStatics::OpenLevel()` with variant map path
 
 ### AMainMenuGameMode (AGameModeBase)
 
@@ -110,8 +129,11 @@ Lives as a static function on a `FMockGitHubData` struct — easy to find and re
 ```
 Main Menu
   → "New Game"
-      → Variant Picker (Combat / SideScrolling / Platforming)
-      → User picks variant
+      → Show repo input (default: "microsoft/vscode") + Refresh button + Variant Picker
+      → [optional] User edits repo input, presses Refresh
+          → UGitHubDataSubsystem::RequestRepositoryData(Owner, Name, bForceRefresh=true)
+          → Result logged to console (UE_LOG key: value per field) [debug]
+      → User picks variant (Combat / SideScrolling / Platforming)
       → FMockGitHubData::GetMockJson()
       → USaveDataSubsystem::CreateSaveData(variant, mockJson)
           → UJsonFileSaveProvider writes Saved/GameData/save.json
@@ -175,3 +197,5 @@ In-Game:
 - [x] Lvl_MainMenu
 - [x] Config: set default map
 - [x] Tests
+- [ ] Repo input (UEditableTextBox, default: "microsoft/vscode") [debug]
+- [ ] Refresh button → UGitHubDataSubsystem::RequestRepositoryData [debug]

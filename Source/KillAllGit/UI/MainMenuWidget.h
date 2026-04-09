@@ -5,8 +5,9 @@
 #include "SaveDataTypes.h"
 #include "MainMenuWidget.generated.h"
 
-class UButton;
-class UVerticalBox;
+class UEditableText;
+class UMenuButton;
+class UWidgetSwitcher;
 class USaveDataSubsystem;
 
 UCLASS()
@@ -18,34 +19,40 @@ protected:
 	virtual void NativeConstruct() override;
 
 private:
-	// Main menu panel — contains New Game and Continue
 	UPROPERTY(meta = (BindWidget))
-	TObjectPtr<UVerticalBox> MainMenuBox;
+	TObjectPtr<UWidgetSwitcher> MenuSwitcher;
+
+	// Top-level panel (index 0 in MenuSwitcher)
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UMenuButton> Btn_NewGame;
 
 	UPROPERTY(meta = (BindWidget))
-	TObjectPtr<UButton> NewGameButton;
+	TObjectPtr<UMenuButton> Btn_Continue;
+
+	// New Game panel
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UEditableText> Input_Repo;
 
 	UPROPERTY(meta = (BindWidget))
-	TObjectPtr<UButton> ContinueButton;
-
-	// Variant picker panel — contains the three variant buttons
-	UPROPERTY(meta = (BindWidget))
-	TObjectPtr<UVerticalBox> VariantPickerBox;
+	TObjectPtr<UMenuButton> Btn_Refresh;
 
 	UPROPERTY(meta = (BindWidget))
-	TObjectPtr<UButton> CombatButton;
+	TObjectPtr<UMenuButton> Btn_Combat;
 
 	UPROPERTY(meta = (BindWidget))
-	TObjectPtr<UButton> SideScrollingButton;
+	TObjectPtr<UMenuButton> Btn_SideScrolling;
 
 	UPROPERTY(meta = (BindWidget))
-	TObjectPtr<UButton> PlatformingButton;
+	TObjectPtr<UMenuButton> Btn_Platforming;
 
 	UFUNCTION()
 	void OnNewGameClicked();
 
 	UFUNCTION()
 	void OnContinueClicked();
+
+	UFUNCTION()
+	void OnRefreshClicked();
 
 	UFUNCTION()
 	void OnSelectCombat();
@@ -57,8 +64,8 @@ private:
 	void OnSelectPlatforming();
 
 	void OnVariantSelected(EGameVariant Variant);
-	void ShowMainMenu();
-	void ShowVariantPicker();
+	void ShowTopLevel();
+	void ShowNewGame();
 	void StartGame(EGameVariant Variant, bool bIsNewGame);
 
 	USaveDataSubsystem* GetSaveSubsystem() const;

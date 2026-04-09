@@ -77,10 +77,12 @@ RequestRepositoryData("microsoft", "vscode")
 
 ## Decisions Log
 
-- **2026-04-07:** Auth via `gh auth token` shell-out rather than config file. Avoids managing secrets on disk. Will revisit when backend exists.
+- **2026-04-09:** Auth via `FPlatformMisc::GetEnvironmentVariable(TEXT("GITHUB_TOKEN"))` with fallback to reading `<ProjectDir>/.env` (gitignored, `KEY=VALUE` format). Shell env takes priority. `.env` fallback ensures editor launched outside terminal (Finder, Xcode) still works. If neither has the token, request is aborted with a logged error.
 - **2026-04-07:** Raw JSON cache on disk rather than USaveGame for API responses. GitHub responses are deeply nested JSON — forcing through UPROPERTY serialization adds boilerplate for data we're just caching. USaveGame reserved for player/game state.
 - **2026-04-07:** GraphQL queries as external `.graphql` files rather than hardcoded C++ strings. Allows iteration without recompilation, testable in GitHub's GraphQL Explorer.
 - **2026-04-07:** UGameInstanceSubsystem for the manager rather than singleton or static. Standard UE5 pattern, no global state, engine-managed lifecycle.
+- **2026-04-09:** `RequestRepositoryData` takes a `bForceRefresh` bool. When true, skips cache read but still writes to cache on success. Used by the main menu Refresh button so every press hits the API.
+- **2026-04-09:** Debug output via `UE_LOG(LogKillAllGit, Display, ...)` — one line per field, `key: value` format. No widget or on-screen display for this milestone. Gameplay Debugger category deferred until in-game context exists.
 
 ## Status
 

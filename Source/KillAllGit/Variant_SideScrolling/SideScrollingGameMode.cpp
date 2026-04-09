@@ -2,10 +2,20 @@
 
 
 #include "SideScrollingGameMode.h"
+#include "UObject/ConstructorHelpers.h"
 #include "Kismet/GameplayStatics.h"
 #include "Blueprint/UserWidget.h"
 #include "SideScrollingUI.h"
 #include "SideScrollingPickup.h"
+
+ASideScrollingGameMode::ASideScrollingGameMode()
+{
+	static ConstructorHelpers::FClassFinder<APlayerController> ControllerClass(TEXT("/Game/Variant_SideScrolling/Blueprints/BP_SideScrollingPlayerController"));
+	if (ControllerClass.Class)
+	{
+		PlayerControllerClass = ControllerClass.Class;
+	}
+}
 
 void ASideScrollingGameMode::BeginPlay()
 {

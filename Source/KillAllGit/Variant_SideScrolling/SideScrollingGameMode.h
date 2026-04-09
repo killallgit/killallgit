@@ -32,6 +32,11 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category="Pickups")
 	int32 PickupsCollected = 0;
 
+public:
+
+	/** Constructor */
+	ASideScrollingGameMode();
+
 protected:
 
 	/** Initialization */

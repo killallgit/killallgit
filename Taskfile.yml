@@ -36,8 +36,9 @@ tasks:
         2>&1 | tee {{.LOG_DIR}}/test.log
 
   editor:
-    desc: Launch the Unreal Editor
+    desc: Compile then launch the Unreal Editor (avoids in-editor compilation error on macOS)
     cmds:
+      - task: compile
       - >-
         open {{.UE_ROOT}}/Engine/Binaries/Mac/UnrealEditor.app
         --args "{{.PROJECT_FILE}}"

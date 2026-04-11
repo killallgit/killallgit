@@ -1,6 +1,9 @@
 #include "MainMenuWidget.h"
 #include "KillAllGit.h"
 #include "MenuButton.h"
+#include "InitOverlayWidget.h"
+#include "GameInitSubsystem.h"
+#include "GameInitPipeline.h"
 #include "Components/EditableText.h"
 #include "Components/WidgetSwitcher.h"
 #include "SaveDataSubsystem.h"
@@ -31,6 +34,12 @@ USaveDataSubsystem* UMainMenuWidget::GetSaveSubsystem() const
 {
 	const UGameInstance* GI = UGameplayStatics::GetGameInstance(GetWorld());
 	return GI ? GI->GetSubsystem<USaveDataSubsystem>() : nullptr;
+}
+
+UGameInitSubsystem* UMainMenuWidget::GetInitSubsystem() const
+{
+	const UGameInstance* GI = UGameplayStatics::GetGameInstance(GetWorld());
+	return GI ? GI->GetSubsystem<UGameInitSubsystem>() : nullptr;
 }
 
 void UMainMenuWidget::ShowTopLevel()
@@ -64,14 +73,22 @@ void UMainMenuWidget::OnContinueClicked()
 	StartGame(Payload.Variant, false);
 }
 
-void UMainMenuWidget::OnRefreshClicked()
+bool UMainMenuWidget::ParseRepoInput(FString& OutOwner, FString& OutName) const
 {
 	const FString RepoInput = Input_Repo->GetText().ToString();
-
-	FString Owner, Name;
-	if (!RepoInput.Split(TEXT("/"), &Owner, &Name))
+	if (!RepoInput.Split(TEXT("/"), &OutOwner, &OutName))
 	{
 		UE_LOG(LogKillAllGit, Warning, TEXT("[MainMenu] Invalid repo format '%s' — expected owner/name"), *RepoInput);
+		return false;
+	}
+	return true;
+}
+
+void UMainMenuWidget::OnRefreshClicked()
+{
+	FString Owner, Name;
+	if (!ParseRepoInput(Owner, Name))
+	{
 		return;
 	}
 
@@ -110,17 +127,96 @@ void UMainMenuWidget::OnVariantSelected(EGameVariant Variant)
 	StartGame(Variant, true);
 }
 
+void UMainMenuWidget::SetVariantButtonsEnabled(bool bEnabled)
+{
+	Btn_Combat->SetIsEnabled(bEnabled);
+	Btn_SideScrolling->SetIsEnabled(bEnabled);
+	Btn_Platforming->SetIsEnabled(bEnabled);
+	Btn_Refresh->SetIsEnabled(bEnabled);
+}
+
 void UMainMenuWidget::StartGame(EGameVariant Variant, bool bIsNewGame)
 {
 	if (bIsNewGame)
 	{
-		USaveDataSubsystem* SaveSubsystem = GetSaveSubsystem();
-		if (SaveSubsystem)
+		if (bInitInProgress)
 		{
-			SaveSubsystem->CreateSaveData(Variant, FMockGitHubData::GetMockJson());
+			return;
 		}
+
+		FString Owner, Name;
+		if (!ParseRepoInput(Owner, Name))
+		{
+			return;
+		}
+
+		if (!InitOverlayClass)
+		{
+			UE_LOG(LogKillAllGit, Error, TEXT("[MainMenu] InitOverlayClass not set — configure it in the Blueprint"));
+			return;
+		}
+
+		UGameInitSubsystem* InitSubsystem = GetInitSubsystem();
+		if (!InitSubsystem)
+		{
+			return;
+		}
+
+		PendingVariant = Variant;
+		bInitInProgress = true;
+		SetVariantButtonsEnabled(false);
+
+		InitSubsystem->BeginInit(Owner, Name, FOnGameInitComplete::CreateUObject(this, &UMainMenuWidget::OnInitComplete));
+
+		UGameInitPipeline* Pipeline = InitSubsystem->GetPipeline();
+		if (Pipeline)
+		{
+			Pipeline->OnFailed.AddUObject(this, &UMainMenuWidget::OnInitFailed);
+		}
+
+		InitOverlay = CreateWidget<UInitOverlayWidget>(GetOwningPlayer(), InitOverlayClass);
+		if (InitOverlay)
+		{
+			InitOverlay->AddToViewport(1);
+			InitOverlay->BindToPipeline(Pipeline);
+		}
+
+		return;
 	}
 
 	const FString MapPath = GameVariantUtils::GetMapPath(Variant);
 	UGameplayStatics::OpenLevel(GetWorld(), FName(*MapPath));
+}
+
+void UMainMenuWidget::OnInitComplete()
+{
+	bInitInProgress = false;
+
+	if (InitOverlay)
+	{
+		InitOverlay->RemoveFromParent();
+		InitOverlay = nullptr;
+	}
+
+	USaveDataSubsystem* SaveSubsystem = GetSaveSubsystem();
+	if (SaveSubsystem)
+	{
+		SaveSubsystem->CreateSaveData(PendingVariant, FMockGitHubData::GetMockJson());
+	}
+
+	const FString MapPath = GameVariantUtils::GetMapPath(PendingVariant);
+	UGameplayStatics::OpenLevel(GetWorld(), FName(*MapPath));
+}
+
+void UMainMenuWidget::OnInitFailed(const FString& Reason)
+{
+	bInitInProgress = false;
+
+	if (InitOverlay)
+	{
+		InitOverlay->RemoveFromParent();
+		InitOverlay = nullptr;
+	}
+
+	SetVariantButtonsEnabled(true);
 }

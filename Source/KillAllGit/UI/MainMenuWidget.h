@@ -1,7 +1,5 @@
 #pragma once
 
-#pragma once
-
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "SaveDataTypes.h"
@@ -11,6 +9,8 @@ class UEditableText;
 class UMenuButton;
 class UWidgetSwitcher;
 class USaveDataSubsystem;
+class UInitOverlayWidget;
+class UGameInitSubsystem;
 
 UCLASS()
 class UMainMenuWidget : public UUserWidget
@@ -47,6 +47,16 @@ private:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UMenuButton> Btn_Platforming;
 
+	// Init overlay
+	UPROPERTY(EditAnywhere, Category = "Init")
+	TSubclassOf<UInitOverlayWidget> InitOverlayClass;
+
+	UPROPERTY()
+	TObjectPtr<UInitOverlayWidget> InitOverlay;
+
+	EGameVariant PendingVariant = EGameVariant::Combat;
+	bool bInitInProgress = false;
+
 	UFUNCTION()
 	void OnNewGameClicked();
 
@@ -69,6 +79,11 @@ private:
 	void ShowTopLevel();
 	void ShowNewGame();
 	void StartGame(EGameVariant Variant, bool bIsNewGame);
+	bool ParseRepoInput(FString& OutOwner, FString& OutName) const;
+	void OnInitComplete();
+	void OnInitFailed(const FString& Reason);
+	void SetVariantButtonsEnabled(bool bEnabled);
 
 	USaveDataSubsystem* GetSaveSubsystem() const;
+	UGameInitSubsystem* GetInitSubsystem() const;
 };

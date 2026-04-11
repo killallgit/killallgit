@@ -43,6 +43,7 @@ public class KillAllGit : ModuleRules
 			"KillAllGit/Variant_SideScrolling/Gameplay",
 			"KillAllGit/Variant_SideScrolling/Interfaces",
 			"KillAllGit/Variant_SideScrolling/UI",
+			"KillAllGit/GameLevels",
 			"KillAllGit/SaveSystem",
 			"KillAllGit/UI",
 			"KillAllGit/Tests/SaveSystem",

@@ -80,3 +80,5 @@ logs/
 
 # Override global gitignore to track project rules
 !CLAUDE.md
+.serena
+docs/specs

@@ -1,4 +1,5 @@
 #include "GitHubAPIClient.h"
+#include "GitHubAuth.h"
 #include "KillAllGit.h"
 #include "HttpModule.h"
 #include "Interfaces/IHttpResponse.h"
@@ -12,7 +13,7 @@ static const FString GitHubGraphQLUrl = TEXT("https://api.github.com/graphql");
 
 void UGitHubAPIClient::FetchRepository(const FString& Owner, const FString& Name, FOnGitHubResponse OnComplete)
 {
-	const FString Token = ResolveAuthToken();
+	const FString Token = GitHubAuth::ResolveToken();
 	if (Token.IsEmpty())
 	{
 		UE_LOG(LogKillAllGit, Error, TEXT("[GitHubAPIClient] GITHUB_TOKEN not found in environment or .env file"));
@@ -42,37 +43,6 @@ void UGitHubAPIClient::FetchRepository(const FString& Owner, const FString& Name
 		OnComplete
 	);
 	Request->ProcessRequest();
-}
-
-FString UGitHubAPIClient::ResolveAuthToken() const
-{
-	// Try shell environment first
-	FString Token = FPlatformMisc::GetEnvironmentVariable(TEXT("GITHUB_TOKEN"));
-	if (!Token.IsEmpty())
-	{
-		return Token;
-	}
-
-	// Fall back to .env in project root
-	const FString EnvFilePath = FPaths::ProjectDir() / TEXT(".env");
-	FString EnvContents;
-	if (!FFileHelper::LoadFileToString(EnvContents, *EnvFilePath))
-	{
-		return FString();
-	}
-
-	TArray<FString> Lines;
-	EnvContents.ParseIntoArrayLines(Lines);
-	for (const FString& Line : Lines)
-	{
-		FString Key, Value;
-		if (Line.Split(TEXT("="), &Key, &Value) && Key.TrimStartAndEnd() == TEXT("GITHUB_TOKEN"))
-		{
-			return Value.TrimStartAndEnd();
-		}
-	}
-
-	return FString();
 }
 
 FString UGitHubAPIClient::LoadQuery(const FString& QueryName) const

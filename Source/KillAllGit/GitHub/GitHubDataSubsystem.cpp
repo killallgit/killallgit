@@ -15,20 +15,17 @@ void UGitHubDataSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 void UGitHubDataSubsystem::RequestRepositoryData(const FString& Owner, const FString& Name, bool bForceRefresh, FOnRepositoryDataReceived OnComplete)
 {
-	const FString RepoId = Owner + TEXT("/") + Name;
-
-	if (!bForceRefresh && Cache->HasCache(RepoId))
+	if (!bForceRefresh && Cache->HasRecord(Owner, Name))
 	{
-		const FString Cached = Cache->ReadCache(RepoId);
-		const FGitHubRepositoryData Data = ParseResponse(Cached);
-		LogRepositoryData(Data);
-		OnComplete.ExecuteIfBound(Data);
+		const FRepoRecord Record = Cache->ReadRecord(Owner, Name);
+		LogRepositoryData(Record);
+		OnComplete.ExecuteIfBound(Record);
 		return;
 	}
 
 	TWeakObjectPtr<UGitHubDataSubsystem> WeakThis(this);
 	APIClient->FetchRepository(Owner, Name, FOnGitHubResponse::CreateLambda(
-		[WeakThis, RepoId, OnComplete](bool bSuccess, FString JsonResponse)
+		[WeakThis, Owner, Name, OnComplete](bool bSuccess, FString JsonResponse)
 		{
 			if (!WeakThis.IsValid())
 			{
@@ -37,23 +34,66 @@ void UGitHubDataSubsystem::RequestRepositoryData(const FString& Owner, const FSt
 
 			if (!bSuccess)
 			{
-				UE_LOG(LogKillAllGit, Error, TEXT("[GitHubDataSubsystem] Fetch failed for %s"), *RepoId);
-				OnComplete.ExecuteIfBound(FGitHubRepositoryData{});
+				UE_LOG(LogKillAllGit, Error, TEXT("[GitHubDataSubsystem] Fetch failed for %s/%s"), *Owner, *Name);
+				OnComplete.ExecuteIfBound(FRepoRecord{});
 				return;
 			}
 
-			WeakThis->Cache->WriteCache(RepoId, JsonResponse);
+			FRepoRecord Record = ParseResponse(JsonResponse);
+			Record.Owner = Owner;
+			Record.Name = Name;
 
-			const FGitHubRepositoryData Data = ParseResponse(JsonResponse);
-			LogRepositoryData(Data);
-			OnComplete.ExecuteIfBound(Data);
+			WeakThis->Cache->WriteRecord(Record);
+			LogRepositoryData(Record);
+			OnComplete.ExecuteIfBound(Record);
 		}
 	));
 }
 
-FGitHubRepositoryData UGitHubDataSubsystem::ParseResponse(const FString& JsonString)
+FRepoRecord UGitHubDataSubsystem::GetRepoRecord(const FString& Owner, const FString& Name) const
 {
-	FGitHubRepositoryData Data;
+	if (Cache->HasRecord(Owner, Name))
+	{
+		return Cache->ReadRecord(Owner, Name);
+	}
+	return FRepoRecord{};
+}
+
+void UGitHubDataSubsystem::UpdateRepoRecord(const FRepoRecord& Record)
+{
+	FRepoRecord Existing = GetRepoRecord(Record.Owner, Record.Name);
+
+	// Merge non-empty fields from incoming record onto existing
+	if (!Record.Description.IsEmpty()) { Existing.Description = Record.Description; }
+	if (!Record.Url.IsEmpty()) { Existing.Url = Record.Url; }
+	if (Record.StargazerCount != 0) { Existing.StargazerCount = Record.StargazerCount; }
+	if (Record.ForkCount != 0) { Existing.ForkCount = Record.ForkCount; }
+	if (!Record.CreatedAt.IsEmpty()) { Existing.CreatedAt = Record.CreatedAt; }
+	if (!Record.UpdatedAt.IsEmpty()) { Existing.UpdatedAt = Record.UpdatedAt; }
+	if (!Record.PrimaryLanguage.IsEmpty()) { Existing.PrimaryLanguage = Record.PrimaryLanguage; }
+	if (!Record.DefaultBranchName.IsEmpty()) { Existing.DefaultBranchName = Record.DefaultBranchName; }
+	if (!Record.ZipSha256.IsEmpty()) { Existing.ZipSha256 = Record.ZipSha256; }
+	if (Record.ZipSizeBytes != 0) { Existing.ZipSizeBytes = Record.ZipSizeBytes; }
+	if (!Record.DownloadedAt.IsEmpty()) { Existing.DownloadedAt = Record.DownloadedAt; }
+
+	Existing.Owner = Record.Owner;
+	Existing.Name = Record.Name;
+
+	Cache->WriteRecord(Existing);
+}
+
+bool UGitHubDataSubsystem::HasRepoZipData(const FString& Owner, const FString& Name) const
+{
+	if (!Cache->HasRecord(Owner, Name))
+	{
+		return false;
+	}
+	return Cache->ReadRecord(Owner, Name).HasZipData();
+}
+
+FRepoRecord UGitHubDataSubsystem::ParseResponse(const FString& JsonString)
+{
+	FRepoRecord Data;
 
 	TSharedPtr<FJsonObject> Root;
 	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonString);
@@ -62,7 +102,6 @@ FGitHubRepositoryData UGitHubDataSubsystem::ParseResponse(const FString& JsonStr
 		return Data;
 	}
 
-	// Surface GraphQL-level errors (auth failure, rate limit, bad query, etc.)
 	const TArray<TSharedPtr<FJsonValue>>* Errors;
 	if (Root->TryGetArrayField(TEXT("errors"), Errors))
 	{
@@ -99,14 +138,12 @@ FGitHubRepositoryData UGitHubDataSubsystem::ParseResponse(const FString& JsonStr
 	(*RepoObj)->TryGetStringField(TEXT("createdAt"), Data.CreatedAt);
 	(*RepoObj)->TryGetStringField(TEXT("updatedAt"), Data.UpdatedAt);
 
-	// primaryLanguage is an object: { "name": "TypeScript" }
 	const TSharedPtr<FJsonObject>* LangObj;
 	if ((*RepoObj)->TryGetObjectField(TEXT("primaryLanguage"), LangObj))
 	{
 		(*LangObj)->TryGetStringField(TEXT("name"), Data.PrimaryLanguage);
 	}
 
-	// defaultBranchRef is an object: { "name": "main" }
 	const TSharedPtr<FJsonObject>* BranchObj;
 	if ((*RepoObj)->TryGetObjectField(TEXT("defaultBranchRef"), BranchObj))
 	{
@@ -116,9 +153,10 @@ FGitHubRepositoryData UGitHubDataSubsystem::ParseResponse(const FString& JsonStr
 	return Data;
 }
 
-void UGitHubDataSubsystem::LogRepositoryData(const FGitHubRepositoryData& Data)
+void UGitHubDataSubsystem::LogRepositoryData(const FRepoRecord& Data)
 {
 	UE_LOG(LogKillAllGit, Display, TEXT("--- GitHub Repository Data ---"));
+	UE_LOG(LogKillAllGit, Display, TEXT("owner: %s"), *Data.Owner);
 	UE_LOG(LogKillAllGit, Display, TEXT("name: %s"), *Data.Name);
 	UE_LOG(LogKillAllGit, Display, TEXT("description: %s"), *Data.Description);
 	UE_LOG(LogKillAllGit, Display, TEXT("url: %s"), *Data.Url);
@@ -128,5 +166,11 @@ void UGitHubDataSubsystem::LogRepositoryData(const FGitHubRepositoryData& Data)
 	UE_LOG(LogKillAllGit, Display, TEXT("default branch: %s"), *Data.DefaultBranchName);
 	UE_LOG(LogKillAllGit, Display, TEXT("created: %s"), *Data.CreatedAt);
 	UE_LOG(LogKillAllGit, Display, TEXT("updated: %s"), *Data.UpdatedAt);
+	if (Data.HasZipData())
+	{
+		UE_LOG(LogKillAllGit, Display, TEXT("zip sha256: %s"), *Data.ZipSha256);
+		UE_LOG(LogKillAllGit, Display, TEXT("zip size: %lld bytes"), Data.ZipSizeBytes);
+		UE_LOG(LogKillAllGit, Display, TEXT("downloaded: %s"), *Data.DownloadedAt);
+	}
 	UE_LOG(LogKillAllGit, Display, TEXT("------------------------------"));
 }

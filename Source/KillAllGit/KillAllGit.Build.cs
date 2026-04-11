@@ -29,6 +29,7 @@ public class KillAllGit : ModuleRules
 		PublicIncludePaths.AddRange(new string[] {
 			"KillAllGit",
 			"KillAllGit/GitHub",
+			"KillAllGit/GameInit",
 			"KillAllGit/Tests",
 			"KillAllGit/Variant_Platforming",
 			"KillAllGit/Variant_Platforming/Animation",
@@ -47,7 +48,8 @@ public class KillAllGit : ModuleRules
 			"KillAllGit/SaveSystem",
 			"KillAllGit/UI",
 			"KillAllGit/Tests/SaveSystem",
-			"KillAllGit/Tests/GitHub"
+			"KillAllGit/Tests/GitHub",
+			"KillAllGit/Tests/GameInit"
 		});
 	}
 }

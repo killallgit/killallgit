@@ -5,6 +5,7 @@
 #include "Components/WidgetSwitcher.h"
 #include "SaveDataSubsystem.h"
 #include "GitHubDataSubsystem.h"
+#include "RepoRecord.h"
 #include "MockGitHubData.h"
 #include "Kismet/GameplayStatics.h"
 

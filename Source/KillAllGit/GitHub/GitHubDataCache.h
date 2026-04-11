@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/NoExportTypes.h"
+#include "RepoRecord.h"
 #include "GitHubDataCache.generated.h"
 
 UCLASS()
@@ -10,16 +11,15 @@ class UGitHubDataCache : public UObject
 	GENERATED_BODY()
 
 public:
-	bool HasCache(const FString& RepoId) const;
-	FString ReadCache(const FString& RepoId) const;
-	void WriteCache(const FString& RepoId, const FString& JsonString);
+	bool HasRecord(const FString& Owner, const FString& Name) const;
+	FRepoRecord ReadRecord(const FString& Owner, const FString& Name) const;
+	void WriteRecord(const FRepoRecord& Record);
 
-	/** Override the cache directory — used in tests to isolate from the real cache. */
 	void SetCacheDirectory(const FString& InCacheDir);
 
 private:
 	FString CacheDir;
 
-	FString GetCachePath(const FString& RepoId) const;
+	FString GetRecordPath(const FString& Owner, const FString& Name) const;
 	static FString SanitizeKey(const FString& RepoId);
 };

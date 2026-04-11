@@ -16,7 +16,6 @@ public:
 	void FetchRepository(const FString& Owner, const FString& Name, FOnGitHubResponse OnComplete);
 
 private:
-	FString ResolveAuthToken() const;
 	FString LoadQuery(const FString& QueryName) const;
 	FString BuildRequestBody(const FString& Query, const FString& Owner, const FString& Name) const;
 

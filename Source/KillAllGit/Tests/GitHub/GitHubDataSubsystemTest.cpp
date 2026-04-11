@@ -1,5 +1,6 @@
 #include "Misc/AutomationTest.h"
 #include "GitHubDataSubsystem.h"
+#include "RepoRecord.h"
 
 namespace GitHubDataSubsystemTestFixtures
 {
@@ -33,7 +34,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 )
 bool FGitHubDataSubsystem_ParseResponse_ValidJson::RunTest(const FString& Parameters)
 {
-	const FGitHubRepositoryData Data = UGitHubDataSubsystem::ParseResponse(
+	const FRepoRecord Data = UGitHubDataSubsystem::ParseResponse(
 		GitHubDataSubsystemTestFixtures::ValidResponse
 	);
 
@@ -50,6 +51,22 @@ bool FGitHubDataSubsystem_ParseResponse_ValidJson::RunTest(const FString& Parame
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGitHubDataSubsystem_ParseResponse_OwnerIsEmpty,
+	"KillAllGit.GitHub.DataSubsystem.ParseResponse_OwnerIsEmpty",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter
+)
+bool FGitHubDataSubsystem_ParseResponse_OwnerIsEmpty::RunTest(const FString& Parameters)
+{
+	const FRepoRecord Data = UGitHubDataSubsystem::ParseResponse(
+		GitHubDataSubsystemTestFixtures::ValidResponse
+	);
+
+	TestTrue("Owner should be empty (caller sets it)", Data.Owner.IsEmpty());
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FGitHubDataSubsystem_ParseResponse_GraphQLErrors,
 	"KillAllGit.GitHub.DataSubsystem.ParseResponse_GraphQLErrors_ReturnsEmpty",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter
@@ -58,7 +75,7 @@ bool FGitHubDataSubsystem_ParseResponse_GraphQLErrors::RunTest(const FString& Pa
 {
 	AddExpectedError(TEXT("GraphQL error: Bad credentials"), EAutomationExpectedErrorFlags::Contains);
 
-	const FGitHubRepositoryData Data = UGitHubDataSubsystem::ParseResponse(
+	const FRepoRecord Data = UGitHubDataSubsystem::ParseResponse(
 		GitHubDataSubsystemTestFixtures::ErrorResponse
 	);
 
@@ -77,7 +94,7 @@ bool FGitHubDataSubsystem_ParseResponse_MissingData::RunTest(const FString& Para
 {
 	AddExpectedError(TEXT("Response missing 'data' field"), EAutomationExpectedErrorFlags::Contains);
 
-	const FGitHubRepositoryData Data = UGitHubDataSubsystem::ParseResponse(
+	const FRepoRecord Data = UGitHubDataSubsystem::ParseResponse(
 		GitHubDataSubsystemTestFixtures::MissingDataResponse
 	);
 

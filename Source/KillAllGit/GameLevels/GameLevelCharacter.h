@@ -29,6 +29,9 @@ protected:
 	UInputAction* LookAction;
 
 	UPROPERTY(EditAnywhere, Category="Input")
+	UInputAction* MouseLookAction;
+
+	UPROPERTY(EditAnywhere, Category="Input")
 	UInputAction* JumpAction;
 
 	void Move(const FInputActionValue& Value);

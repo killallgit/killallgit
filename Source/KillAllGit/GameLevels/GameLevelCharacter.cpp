@@ -65,6 +65,7 @@ void AGameLevelCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 	{
 		EIC->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AGameLevelCharacter::Move);
 		EIC->BindAction(LookAction, ETriggerEvent::Triggered, this, &AGameLevelCharacter::Look);
+		EIC->BindAction(MouseLookAction, ETriggerEvent::Triggered, this, &AGameLevelCharacter::Look);
 		EIC->BindAction(JumpAction, ETriggerEvent::Started,   this, &ACharacter::Jump);
 		EIC->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
 	}
